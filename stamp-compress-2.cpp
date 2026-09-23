@@ -6,6 +6,9 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+#define MSF_GIF_IMPL
+#include "msf_gif.h"
+
 static const int N = 32;
 static const float PI = 3.14159265358979f;
 
@@ -17,7 +20,7 @@ static const float PI = 3.14159265358979f;
 //                   function for coefficient (u,v), already scaled by a[u]*a[v]
 
 static unsigned char toByte(float v) {
-    v = v * 255.0f;
+    v = (v + 1.0f)/2.0f * 255.0f;
     return (unsigned char)(v < 0.0f ? 0.0f : (v > 255.0f ? 255.0f : v + 0.5f));
 }
 
@@ -61,6 +64,8 @@ int main() {
     float* DCT_LK = new float[N*N*N*N];
     unsigned char* imgOut = new unsigned char[N*N*N*N];
 
+    unsigned char imageBuffer[N*N*4];
+
     unsigned char dataChar[N*N];
     unsigned char dctLUTChar[N*N];
     unsigned char dctLUTAbsChar[N*N];
@@ -80,10 +85,16 @@ int main() {
 
     for (int y = 0; y < N; y++) {
         for (int x = 0; x < N; x++) {
-            data[y*N + x] = (float)(dataTemp[(y*N + x)*4 + 0] / (255.0));
+            data[y*N + x] = (float)(dataTemp[(y*N + x)*4 + 0] / (255.0))*2.0f - 1.0f;
             dataMask[y*N + x] = dataTemp[(y*N + x)*4 + 3];
         }
     }
+
+    // GIF setup
+    int gifWidth = N, gifHeight = N, centisecondsPerFrame = 50, quality = 16;
+    MsfGifState gifState = {};
+    // msf_gif_alpha_threshold = 128; //optionally, enable transparency (see function documentation below for details)
+    msf_gif_begin(&gifState, gifWidth, gifHeight);
 
     //printMat("Input:", data);
 
@@ -124,16 +135,66 @@ int main() {
     }
     stbi_write_png("dctMat.png", N*N, N*N, 1, imgOut, N*N);
 
+    int opaquePixelCount = 0;
+    // Count Opaque Pixels
+    for (int y = 0; y < N; y++) {
+        for (int x = 0; x < N; x++) {
+            if (dataMask[N*y + x] !=0) {
+                opaquePixelCount++;
+            }
+        }
+    }
+
     // ---- Forward DCT, via table (one coefficient at a time) ----
     for (int v = 0; v < N; v++) {
         for (int u = 0; u < N; u++) {
             float sum = 0.0f;
+            float opaqueIdealSum = 0.0f;
+            float transIdealSum = 0.0f;
+            float fullIdealSum = 0.0f;
+            float individualNormalizedSum = 0.0f;
             for (int y = 0; y < N; y++) {
                 for (int x = 0; x < N; x++) {
-                    sum += DCT_LK[N*N*N*v + N*N*y + N*u + x] * data[y*N + x];
+                    // Skip transparent pixels
+                    float lutVal = DCT_LK[N*N*N*v + N*N*y + N*u + x];
+                    float curVal = lutVal * data[y*N + x];
+                    if (dataMask[N*y + x] != 0) {
+                        sum += curVal;
+                        opaqueIdealSum += abs(lutVal);
+                        individualNormalizedSum += curVal / abs(lutVal);
+                    } else {
+                        transIdealSum += abs(lutVal);
+                    }
+                    fullIdealSum += abs(lutVal);
                 }
             }
-            dctLUT[v*N + u] = sum;
+
+            float transSum = 0.0f;
+
+            for (int y = 0; y < N; y++) {
+                for (int x = 0; x < N; x++) {
+                    // Skip transparent pixels
+                    float lutVal = DCT_LK[N*N*N*v + N*N*y + N*u + x];
+                    float curVal = lutVal * data[y*N + x];
+                    if (dataMask[N*y + x] != 0) {
+
+                    } else {
+                        transSum += abs(lutVal) * individualNormalizedSum/(N*N);
+                    }
+                }
+            }
+            // Normalize sum to value as if opaque pixels only mattered
+
+            // 
+            float opaqueFactor = sum/opaqueIdealSum;
+
+            float transparentPixelCount = N*N - opaquePixelCount;
+
+            //float result = transparentPixelCount/(2*N*N) * (opaqueFactor * transIdealSum);
+            float result = transparentPixelCount * (individualNormalizedSum/(N*N) * transIdealSum/(N*N));
+
+            dctLUT[v*N + u] = sum + transSum;
+            //dctLUT[v*N + u] = sum;
         }
     }
     //printMat("DCT (table):", dctLUT);
@@ -161,11 +222,21 @@ int main() {
     // ---- Inverse DCT, via table: coefficient-outer, pixel-inner ----
     for (int k = 0; k < N*N; k++) invLUT[k] = 0.0f;
 
+    for (int curNv = 1; curNv <= N; curNv++) {
+    //for (int curNu = 1; curNu <= N; curNu++) {
+
+    // Clear
+    for (int y = 0; y < N; y++) {
+        for (int x = 0; x < N; x++) {
+            invLUT[N*y + x] = 0;
+        }
+    }
+
     // Doing subset for testing
-    for (int v = 0; v < N/2; v++) {
-        for (int u = 0; u < N/2; u++) {
+    for (int v = 0; v < curNv; v++) {
+        for (int u = 0; u < curNv; u++) {
             float c = dctLUT[v*N + u];
-            if (c == 0.0f) continue;          // skip empty coefficient
+            //if (c == 0.0f) continue;          // skip empty coefficient
 
             for (int y = 0; y < N; y++) {
                 for (int x = 0; x < N; x++) {
@@ -174,6 +245,42 @@ int main() {
             }
         }
     }
+
+    for (int y = 0; y < N; y++) {
+        for (int x = 0; x < N; x++) {
+            int ibIdx = (y*N + x)*4;
+            if (true) {
+                imageBuffer[ibIdx+0] = toByte(invLUT[N*y + x]);
+                imageBuffer[ibIdx+1] = toByte(invLUT[N*y + x]);
+                imageBuffer[ibIdx+2] = toByte(invLUT[N*y + x]);
+                imageBuffer[ibIdx+3] = 0xFF;
+            } else {
+                imageBuffer[ibIdx+0] = 0x40;
+                imageBuffer[ibIdx+1] = 0x40;
+                imageBuffer[ibIdx+2] = 0x40;
+                imageBuffer[ibIdx+3] = 0xFF;
+            }
+
+        }
+    }
+
+    msf_gif_frame(&gifState, imageBuffer, centisecondsPerFrame, quality, width * 4);
+
+    //}
+    }
+
+    // Have final result displayed for longer
+    msf_gif_frame(&gifState, imageBuffer, centisecondsPerFrame * 2, quality, width * 4);
+
+    // Write GIF
+    MsfGifResult result = msf_gif_end(&gifState);
+    if (result.data) {
+        FILE * fp = fopen("sequence.gif", "wb");
+        fwrite(result.data, result.dataSize, 1, fp);
+        fclose(fp);
+    }
+    msf_gif_free(result);
+
     //printMat("Inverse (table):", invLUT);
 
     // ---- Sparse reconstruction: drop small coefficients ----
@@ -225,8 +332,8 @@ int main() {
 
     }
     stbi_write_png("data.png",                N, N, 1, dataChar, N);
-    stbi_write_png("dct.png",                 N, N, 1, dctLUTChar, N);
-    stbi_write_png("dct_abs.png",             N, N, 1, dctLUTAbsChar, N);
+    stbi_write_png("dct_LUT.png",             N, N, 1, dctLUTChar, N);
+    stbi_write_png("dct_LUT_abs.png",         N, N, 1, dctLUTAbsChar, N);
     stbi_write_png("directRecon.png",         N, N, 1, invDirectChar, N);
     stbi_write_png("dataReconLUT.png",        N, N, 1, invLUTChar, N);
     stbi_write_png("dataReconLUT_sparse.png", N, N, 1, sparseChar, N);
