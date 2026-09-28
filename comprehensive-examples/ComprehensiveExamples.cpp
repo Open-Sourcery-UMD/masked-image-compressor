@@ -19,7 +19,7 @@ static const float PI = 3.14159265358979f;
 int PAD = 8;
 
 // Set to value for transparency, 256 disables for image output
-int MASK_CHECK = 0;
+int MASK_CHECK = 256;
 
 // Layout conventions used everywhere:
 //   pixels        : [y*N + x]
@@ -234,6 +234,12 @@ int main() {
         }
     }
 
+    // Reset output
+    for (int y = 0; y < N; y++) {
+        for (int x = 0; x < N; x++) {
+            invLUT[N*y + x] = 0;
+        }
+    }
     // Inverse DCT LUT is calculated at differing subsections of the DCT
     // coefficients, run in a loop
 
@@ -243,13 +249,30 @@ int main() {
     // The next frame shows 2x2 coefficients, etc.
     for (int curN = 1; curN <= N; curN++) {
 
-        // Reset output
-        for (int y = 0; y < N; y++) {
-            for (int x = 0; x < N; x++) {
-                invLUT[N*y + x] = 0;
+        // Forward DCT
+        for (int v = 0; v < N; v++) {
+            for (int u = 0; u < N; u++) {
+
+                float sum = 0.0f;
+
+                // Inner loop iterates over the pixels of the image and the
+                // corresponding entires of the DCT coefficient at (u, v)
+                for (int y = 0; y < N; y++) {
+                    for (int x = 0; x < N; x++) {
+
+                        float lutVal = DCT_LUT[N*N*N*v + N*N*y + N*u + x];
+                        sum += lutVal * dataCopy[y*N + x];
+
+                    }
+                }
+
+                // Sets the DCT coefficient (u, v) to the result
+                dctCoeffLUT[v*N + u] = sum;
+
             }
         }
 
+        // Inverse DCT
         for (int v = 0; v < curN; v++) {
             for (int u = 0; u < curN; u++) {
                 float c = dctCoeffLUT[v*N + u];
@@ -258,6 +281,17 @@ int main() {
                     for (int x = 0; x < N; x++) {
                         invLUT[y*N + x] += c * DCT_LUT[N*N*N*v + N*N*y + N*u + x];
                     }
+                }
+            }
+        }
+
+        // Copy background for next iteration
+        for (int y = 0; y < N; y++) {
+            for (int x = 0; x < N; x++) {
+                int dataIdx = N*y + x;
+                // Sets transparent background pixels to value of previous iteration
+                if (dataMask[dataIdx] == 0) {
+                    dataCopy[dataIdx] = invLUT[dataIdx];
                 }
             }
         }
