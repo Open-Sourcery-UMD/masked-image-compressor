@@ -234,12 +234,6 @@ int main() {
         }
     }
 
-    // Reset output
-    for (int y = 0; y < N; y++) {
-        for (int x = 0; x < N; x++) {
-            invLUT[N*y + x] = 0;
-        }
-    }
     // Inverse DCT LUT is calculated at differing subsections of the DCT
     // coefficients, run in a loop
 
@@ -247,11 +241,21 @@ int main() {
     // coefficients transformed into the image
     // The first frame shows just 1 coefficient, N=0, which is the DC term
     // The next frame shows 2x2 coefficients, etc.
+
+    // Algorithm: Performs a loop, where after each subset of the DCT is
+    // calculated, the next iteration of the loop will perform an IDCT
+    // on the previous result, and set that result to the transparent
+    // pixel data.
+    // This results in the low frequency data being evaluated onto the
+    // transparent pixels.
+    // Aka, for iteration 1, finds the average DC value of image
+    // Iteration 2 sets the background to the average value, then
+    // runs the algorithm again to find the lowest frequency values.
     for (int curN = 1; curN <= N; curN++) {
 
         // Forward DCT
-        for (int v = 0; v < N; v++) {
-            for (int u = 0; u < N; u++) {
+        for (int v = 0; v < curN; v++) {
+            for (int u = 0; u < curN; u++) {
 
                 float sum = 0.0f;
 
@@ -269,6 +273,13 @@ int main() {
                 // Sets the DCT coefficient (u, v) to the result
                 dctCoeffLUT[v*N + u] = sum;
 
+            }
+        }
+
+        // Reset output
+        for (int y = 0; y < N; y++) {
+            for (int x = 0; x < N; x++) {
+                invLUT[N*y + x] = 0;
             }
         }
 
