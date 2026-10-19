@@ -95,8 +95,8 @@ int main() {
     }
 
     // Inverse DCT, directly calculated
-    for (int v = 0; v < N; v++) {
-        for (int u = 0; u < N; u++) {
+    for (int v = 0; v < N/2; v++) {
+        for (int u = 0; u < N/2; u++) {
             float coeff = dctCoeffDirect[v*N + u];
             float weightedCoeff = a[u] * a[v] * coeff;
 
