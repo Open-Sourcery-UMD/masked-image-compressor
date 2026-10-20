@@ -1,8 +1,8 @@
 use crate::math;
-use image::{DynamicImage, GenericImageView, ImageReader};
+use error::ImageError;
+use image::{ColorType, DynamicImage, GenericImage, GenericImageView, ImageReader, Rgba};
 use std::error::Error;
 use std::path::Path;
-use error::ImageError;
 
 /// Contains errors that may occur when processing images.
 pub mod error;
@@ -44,8 +44,8 @@ impl Image {
 
     /// Calculates the DCT Type 2 for this image and returns each pixel's coefficient in a vector
     /// of f64s.
-    pub fn get_dct_type_2(&self) -> Vec<f64> {
-        // This gets channel zero of the RGBA image
+    pub fn dct_2(&self) -> Vec<f64> {
+        // This gets channel zero of the RGBA image converted on a scale from -1.0 to 1.0
         let pixel_f64 = |x: u32, y: u32| (self.pixel(x, y).0 as f64) / 255.0 * 2.0 - 1.0;
 
         let mut dct_input = vec![0.0; (self.width() * self.height()) as usize];
@@ -58,5 +58,41 @@ impl Image {
 
         // Do the entire image (the image is square)
         math::dct_type_2(&dct_input, self.width())
+    }
+
+    /// Gets a new image that is derived from the DCT II coefficients of the supplied image.
+    pub fn dct_2_image(&self) -> Self {
+        let dct = self.dct_2();
+
+        let max = dct
+            .iter()
+            .reduce(|acc, e| if e.abs() > acc.abs() { &e } else { &acc })
+            .expect("This iterator should never be empty")
+            .abs();
+
+        let dct_scaled: Box<[u8]> = dct.iter().map(|x| (x / max * 255.0) as u8).collect();
+
+        let mut dyn_img = DynamicImage::new(self.width(), self.height(), ColorType::Rgb8);
+
+        for y in 0..self.height() {
+            for x in 0..self.width() {
+                let component = dct_scaled[(self.width() * y + x) as usize];
+
+                dyn_img.put_pixel(x, y, Rgba([component, component, component, component]));
+            }
+        }
+
+        Self { img: dyn_img }
+    }
+
+    /// Saves the image to a specified path and returns an error if unsuccessful.
+    pub fn save(&self, filename: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
+        let result = self.img.save(filename);
+
+        if result.is_err() {
+            Err(Box::new(result.unwrap_err()))
+        } else {
+            Ok(())
+        }
     }
 }

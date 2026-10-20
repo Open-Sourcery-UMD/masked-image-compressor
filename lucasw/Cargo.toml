@@ -15,6 +15,10 @@ path = "src/dctdump.rs"
 name = "imgdump"
 path = "src/imgdump.rs"
 
+[[bin]]
+name = "dctimg"
+path = "src/dctimg.rs"
+
 [lib]
 name = "libmicrs"
 path = "src/lib.rs"
