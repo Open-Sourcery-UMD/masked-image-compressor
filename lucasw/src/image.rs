@@ -87,12 +87,7 @@ impl Image {
 
     /// Saves the image to a specified path and returns an error if unsuccessful.
     pub fn save(&self, filename: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
-        let result = self.img.save(filename);
-
-        if result.is_err() {
-            Err(Box::new(result.unwrap_err()))
-        } else {
-            Ok(())
-        }
+        self.img.save(filename)?;
+        Ok(())
     }
 }
