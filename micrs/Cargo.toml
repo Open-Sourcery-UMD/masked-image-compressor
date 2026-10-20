@@ -1,0 +1,28 @@
+[package]
+name = "micrs"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "micrs"
+path = "src/main.rs"
+
+[[bin]]
+name = "dctdump"
+path = "src/dctdump.rs"
+
+[[bin]]
+name = "imgdump"
+path = "src/imgdump.rs"
+
+[[bin]]
+name = "dctimg"
+path = "src/dctimg.rs"
+
+[lib]
+name = "libmicrs"
+path = "src/lib.rs"
+
+[dependencies]
+image = "0.25"
+clap = { version = "4.6", features = ["derive"] }
