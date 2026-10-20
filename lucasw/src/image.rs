@@ -1,6 +1,6 @@
 use crate::math;
 use error::ImageError;
-use image::{ColorType, DynamicImage, GenericImage, GenericImageView, ImageReader, Rgba};
+use image::{DynamicImage, GenericImageView, ImageReader};
 use std::error::Error;
 use std::path::Path;
 
@@ -24,6 +24,11 @@ impl Image {
             true => Ok(i),
             false => Err(Box::new(ImageError::NotSquareImage)),
         }
+    }
+
+    /// Creates a new image from a DynamicImage
+    pub fn new(img: impl Into<DynamicImage>) -> Self {
+        Self { img: img.into() }
     }
 
     /// Returns width.
@@ -58,31 +63,6 @@ impl Image {
 
         // Do the entire image (the image is square)
         math::dct_type_2(&dct_input, self.width())
-    }
-
-    /// Gets a new image that is derived from the DCT II coefficients of the supplied image.
-    pub fn dct_2_image(&self) -> Self {
-        let dct = self.dct_2();
-
-        let max = dct
-            .iter()
-            .reduce(|acc, e| if e.abs() > acc.abs() { &e } else { &acc })
-            .expect("This iterator should never be empty")
-            .abs();
-
-        let dct_scaled: Box<[u8]> = dct.iter().map(|x| (x / max * 255.0) as u8).collect();
-
-        let mut dyn_img = DynamicImage::new(self.width(), self.height(), ColorType::Rgb8);
-
-        for y in 0..self.height() {
-            for x in 0..self.width() {
-                let component = dct_scaled[(self.width() * y + x) as usize];
-
-                dyn_img.put_pixel(x, y, Rgba([component, component, component, component]));
-            }
-        }
-
-        Self { img: dyn_img }
     }
 
     /// Saves the image to a specified path and returns an error if unsuccessful.
