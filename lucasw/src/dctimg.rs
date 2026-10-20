@@ -53,5 +53,5 @@ pub fn dct_2_image(image: &Image) -> Image {
         }
     }
 
-    Image::new(dyn_img)
+    Image::new(dyn_img).expect("The input has got to be a square image??? What happened?")
 }

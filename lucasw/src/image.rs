@@ -27,8 +27,14 @@ impl Image {
     }
 
     /// Creates a new image from a DynamicImage
-    pub fn new(img: impl Into<DynamicImage>) -> Self {
-        Self { img: img.into() }
+    pub fn new(img: impl Into<DynamicImage>) -> Result<Image, Box<dyn Error>> {
+        let img = Self { img: img.into() };
+
+        // Maybe later we'll support non-square images
+        match img.width() == img.height() {
+            true => Ok(img),
+            false => Err(Box::new(ImageError::NotSquareImage)),
+        }
     }
 
     /// Returns width.
