@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cmath>
+#include <chrono>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -42,6 +43,147 @@ static float maxAbsDiff(const float* p, const float* q, const unsigned char* mas
         }
     }
     return m;
+}
+
+// 8 HQ, 16 MQ, 32 LQ
+const float baseQ = 16.0f;
+
+// 1 HQ, 2 MQ, 3 LQ
+const float slope = 2.0f;
+
+// Estimated compression cost, done by log of dct coefficients
+static float compressCostLog(const float* coef) {
+    
+    float sum = 0.0f;
+
+    for (int v = 0; v < N; v++) {
+
+        for (int u = 0; u < N; u++) {
+            
+            // Skip DC Coefficient
+            if (u==0 && v==0) {
+                continue;
+            }
+
+            float Q = baseQ * (1.0f + slope * (u + v) / ((float) N));
+
+            sum += std::log2(1.0f + fabsf(coef[N*v + u]) / Q);
+        }
+    }
+
+    return sum / (N*N);
+
+}
+
+// Estimated compression cost, done by log of dct coefficients
+static float calcPSNR(const float* imageRef, const float* imageTest, const unsigned char* mask) {
+    
+    float sum = 0.0f;
+    int totalPixels = 0;
+
+    for (int y = 0; y < N; y++) {
+
+        for (int x = 0; x < N; x++) {
+            
+            if (mask[N*y+x] != 0) {
+                int diff = fabsf(imageRef[N*y + x] - imageTest[N*y + x]);
+                sum += diff * diff;
+                totalPixels++;
+            }
+        }
+    }
+
+    float mse = sum / totalPixels;
+    float psnr = 10.0f*std::log10f((1.0*1.0)/mse);
+    return psnr;
+
+}
+
+// Inverse DCT LUT is calculated at differing subsections of the DCT
+// coefficients, run in a loop
+
+// Generates GIF with each frame showing the curN by curN block of
+// coefficients transformed into the image
+// The first frame shows just 1 coefficient, N=0, which is the DC term
+// The next frame shows 2x2 coefficients, etc.
+
+// Algorithm: Performs a loop, where after each subset of the DCT is
+// calculated, the next iteration of the loop will perform an IDCT
+// on the previous result, and set that result to the transparent
+// pixel data.
+// This results in the low frequency data being evaluated onto the
+// transparent pixels.
+// Aka, for iteration 1, finds the average DC value of image
+// Iteration 2 sets the background to the average value, then
+// runs the algorithm again to find the lowest frequency values.
+void partialDCTCompute(float *dctCoeffLUT, float *invLUT, float *DCT_LUT, unsigned char *dataMask, float *dataCopy, int targetN) {
+    for (int curN = 1; curN <= targetN; curN++) {
+
+        // Forward DCT
+        for (int v = 0; v < curN; v++) {
+            for (int u = 0; u < curN; u++) {
+
+                float sum = 0.0f;
+
+                // Inner loop iterates over the pixels of the image and the
+                // corresponding entires of the DCT coefficient at (u, v)
+                for (int y = 0; y < N; y++) {
+                    for (int x = 0; x < N; x++) {
+
+                        float lutVal = DCT_LUT[N*N*N*v + N*N*y + N*u + x];
+                        sum += lutVal * dataCopy[y*N + x];
+
+                    }
+                }
+
+                // Sets the DCT coefficient (u, v) to the result
+                dctCoeffLUT[v*N + u] = sum;
+
+            }
+        }
+
+        // Currently not used, but in the future could stop once target is hit
+        // Print DCT Compression Cost Estimation
+        //float compEstimate = compressCostLog(dctCoeffLUT);
+        //printf("Cost at subN=%d: %f\t", curN, compEstimate);
+
+        // Reset output
+        for (int y = 0; y < N; y++) {
+            for (int x = 0; x < N; x++) {
+                invLUT[N*y + x] = 0;
+            }
+        }
+
+        // Inverse DCT
+        for (int v = 0; v < curN; v++) {
+            for (int u = 0; u < curN; u++) {
+                float c = dctCoeffLUT[v*N + u];
+
+                for (int y = 0; y < N; y++) {
+                    for (int x = 0; x < N; x++) {
+                        invLUT[y*N + x] += c * DCT_LUT[N*N*N*v + N*N*y + N*u + x];
+                    }
+                }
+            }
+        }
+
+        // Currently not used, but in the future could stop once target is hit
+        // Print DCT PSNR
+        //float psnr = calcPSNR(data, invLUT, dataMask);
+        //printf("PSNR at subN=%d: %f\n", curN, psnr);
+
+        // Copy background for next iteration
+        for (int y = 0; y < N; y++) {
+            for (int x = 0; x < N; x++) {
+                int dataIdx = N*y + x;
+                // Sets transparent background pixels to value of previous iteration
+                if (dataMask[dataIdx] == 0) {
+                    dataCopy[dataIdx] = invLUT[dataIdx];
+                }
+            }
+        }
+
+    }
 }
 
 int main() {
@@ -234,55 +376,23 @@ int main() {
         }
     }
 
-    // Inverse DCT LUT is calculated at differing subsections of the DCT
-    // coefficients, run in a loop
+    for (int targetN = 0; targetN <= N; targetN++) {
+        // Start Time Benchmark
+        using clock = std::chrono::steady_clock;
 
-    // Generates GIF with each frame showing the curN by curN block of
-    // coefficients transformed into the image
-    // The first frame shows just 1 coefficient, N=0, which is the DC term
-    // The next frame shows 2x2 coefficients, etc.
+        clock::time_point start_time = clock::now();
 
-    // Algorithm: Performs a loop, where after each subset of the DCT is
-    // calculated, the next iteration of the loop will perform an IDCT
-    // on the previous result, and set that result to the transparent
-    // pixel data.
-    // This results in the low frequency data being evaluated onto the
-    // transparent pixels.
-    // Aka, for iteration 1, finds the average DC value of image
-    // Iteration 2 sets the background to the average value, then
-    // runs the algorithm again to find the lowest frequency values.
-    for (int curN = 1; curN <= N; curN++) {
+        // Benchmarks Paritial/Progressive DCT Method
+        partialDCTCompute(dctCoeffLUT, invLUT, DCT_LUT, dataMask, dataCopy, targetN);
 
-        // Forward DCT
-        for (int v = 0; v < curN; v++) {
-            for (int u = 0; u < curN; u++) {
+        clock::time_point end_time = clock::now();
 
-                float sum = 0.0f;
+        std::chrono::duration<double, std::milli> elapsed_time = end_time - start_time;
 
-                // Inner loop iterates over the pixels of the image and the
-                // corresponding entires of the DCT coefficient at (u, v)
-                for (int y = 0; y < N; y++) {
-                    for (int x = 0; x < N; x++) {
+        printf("Time: %f\n", elapsed_time.count());
 
-                        float lutVal = DCT_LUT[N*N*N*v + N*N*y + N*u + x];
-                        sum += lutVal * dataCopy[y*N + x];
-
-                    }
-                }
-
-                // Sets the DCT coefficient (u, v) to the result
-                dctCoeffLUT[v*N + u] = sum;
-
-            }
-        }
-
-        // Reset output
-        for (int y = 0; y < N; y++) {
-            for (int x = 0; x < N; x++) {
-                invLUT[N*y + x] = 0;
-            }
-        }
-
+        // Use if final IDCT is not computed as part of each method
+#if 0
         // Inverse DCT
         for (int v = 0; v < curN; v++) {
             for (int u = 0; u < curN; u++) {
@@ -295,17 +405,11 @@ int main() {
                 }
             }
         }
+#endif
 
-        // Copy background for next iteration
-        for (int y = 0; y < N; y++) {
-            for (int x = 0; x < N; x++) {
-                int dataIdx = N*y + x;
-                // Sets transparent background pixels to value of previous iteration
-                if (dataMask[dataIdx] == 0) {
-                    dataCopy[dataIdx] = invLUT[dataIdx];
-                }
-            }
-        }
+        // Print DCT PSNR
+        float psnr = calcPSNR(data, invLUT, dataMask);
+        printf("PSNR at subN=%d: %f\n", targetN, psnr);
 
         // Copies each frame to the imageBuffer, converting it from
         // grayscale to RGBA (With RGB channels all the same)
@@ -338,10 +442,11 @@ int main() {
 
         msf_gif_frame(&gifState, imageBuffer, centisecondsPerFrame, quality, gifWidth * 4);
 
-    }
+        // Print DCT Compression Cost Estimation
+        float compEstimate = compressCostLog(dctCoeffLUT);
+        printf("Cost at subN=%d: %f\t", targetN, compEstimate);
 
-    // Have final result displayed for longer
-    msf_gif_frame(&gifState, imageBuffer, centisecondsPerFrame * 2, quality, gifWidth * 4);
+    }
 
     // Write GIF
     MsfGifResult result = msf_gif_end(&gifState);
