@@ -103,7 +103,7 @@ pub(super) fn lz77_decompress(tokens: &[LZ77Token]) -> Box<[u8]> {
 mod tests {
     use crate::lif::lz77::LZ77Token::{BackRef, Byte};
     use crate::lif::lz77::{LZ77Token, lz77_compress, lz77_decompress};
-    use rand::{rng, RngExt};
+    use rand::{RngExt, rng};
 
     const fn byte(c: char) -> LZ77Token {
         Byte(c as u8)
@@ -113,12 +113,23 @@ mod tests {
     fn test_lz77_compress_decompress_random_50() {
         let mut rng = rng();
 
+        const BYTES_TO_COMPRESS: usize = 5000;
+
         for _ in 0..50 {
-            let mut input: Vec<u8> = Vec::with_capacity(20);
-            input.fill_with(|| rng.random());
+            let mut input: Vec<u8> = Vec::with_capacity(BYTES_TO_COMPRESS);
+
+            for _ in 0..BYTES_TO_COMPRESS {
+                input.push(rng.random());
+            }
 
             let compressed = lz77_compress(&input);
             let decompressed = lz77_decompress(&compressed);
+
+
+            println!(
+                "Percentage saved {:.2}%",
+                1.0 - (compressed.len() as f64) / (input.len() as f64)
+            );
 
             assert_eq!(input.into_boxed_slice(), decompressed);
         }
@@ -138,8 +149,6 @@ mod tests {
         let bytes = "ha ha ha".as_bytes();
         let candidate = lz77_compress(bytes);
 
-        dbg!(&candidate);
-
         assert_eq!(
             vec![
                 byte('h'),
@@ -157,8 +166,6 @@ mod tests {
     fn test_lz77_compress_2() {
         let bytes = "ba de bump de bump".as_bytes();
         let candidate = lz77_compress(bytes);
-
-        dbg!(&candidate);
 
         assert_eq!(
             vec![
@@ -184,8 +191,6 @@ mod tests {
         let bytes =
             "Good day my friend! Well good day my friend as well. Ha ha ha ha ha!".as_bytes();
         let candidate = lz77_compress(bytes);
-
-        dbg!(&candidate);
 
         let expected = vec![
             byte('G'),
