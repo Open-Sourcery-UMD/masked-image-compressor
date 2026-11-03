@@ -376,7 +376,7 @@ int main() {
         }
     }
 
-    for (int targetN = 0; targetN <= N; targetN++) {
+    for (int targetN = 1; targetN <= N; targetN++) {
         // Start Time Benchmark
         using clock = std::chrono::steady_clock;
 
@@ -389,13 +389,19 @@ int main() {
 
         std::chrono::duration<double, std::milli> elapsed_time = end_time - start_time;
 
-        printf("Time: %f\n", elapsed_time.count());
+        printf("Time: %f\t", elapsed_time.count());
 
         // Use if final IDCT is not computed as part of each method
 #if 0
+        // Reset output
+        for (int y = 0; y < N; y++) {
+            for (int x = 0; x < N; x++) {
+                invLUT[N*y + x] = 0;
+            }
+        }
         // Inverse DCT
-        for (int v = 0; v < curN; v++) {
-            for (int u = 0; u < curN; u++) {
+        for (int v = 0; v < N; v++) {
+            for (int u = 0; u < N; u++) {
                 float c = dctCoeffLUT[v*N + u];
 
                 for (int y = 0; y < N; y++) {
@@ -409,7 +415,7 @@ int main() {
 
         // Print DCT PSNR
         float psnr = calcPSNR(data, invLUT, dataMask);
-        printf("PSNR at subN=%d: %f\n", targetN, psnr);
+        printf("PSNR at subN=%d: %f\t", targetN, psnr);
 
         // Copies each frame to the imageBuffer, converting it from
         // grayscale to RGBA (With RGB channels all the same)
@@ -444,7 +450,8 @@ int main() {
 
         // Print DCT Compression Cost Estimation
         float compEstimate = compressCostLog(dctCoeffLUT);
-        printf("Cost at subN=%d: %f\t", targetN, compEstimate);
+        //printf("Cost at subN=%d: %f\n", targetN, compEstimate);
+        printf("Cost Estimate: %f\n", compEstimate);
 
     }
 
