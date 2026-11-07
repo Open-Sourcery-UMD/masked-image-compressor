@@ -22,7 +22,15 @@ FetchContent_Declare(
         DOWNLOAD_NO_EXTRACT ON
 )
 
-FetchContent_MakeAvailable(stb_image)
+# Download argparse
+FetchContent_Declare(
+        argparse
+        URL "https://raw.githubusercontent.com/p-ranav/argparse/refs/heads/master/include/argparse/argparse.hpp"
+        DOWNLOAD_DIR "${CMAKE_CURRENT_BINARY_DIR}/include/"
+        DOWNLOAD_NO_EXTRACT ON
+)
+
+FetchContent_MakeAvailable(stb_image argparse)
 
 # Set a universal directory to access downloaded headers from
 set(MICPP_DEP_INCLUDE "${CMAKE_CURRENT_BINARY_DIR}/include")
@@ -30,3 +38,7 @@ set(MICPP_DEP_INCLUDE "${CMAKE_CURRENT_BINARY_DIR}/include")
 # Main target for the compressor
 add_executable(micompress src/micompress.cpp)
 target_include_directories(micompress PRIVATE include ${MICPP_DEP_INCLUDE})
+
+# dctdump, a tool for dumping the DCT coefficients of a vector
+add_executable(dctdump src/dctdump.cpp src/image.cpp)
+target_include_directories(dctdump PRIVATE include ${MICPP_DEP_INCLUDE})
