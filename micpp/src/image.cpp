@@ -82,7 +82,7 @@ Adaptor2D<std::vector<double>> Image::dct() const {
                 for (std::size_t x{ 0 }; x < m_width; ++x) {
                     const std::size_t index{ (y * m_width + x) * 4 };
 
-                    const double channel_0{ m_data[index + 0] / 255.0 * 2.0 - 1.0 };
+                    const double channel_0{ m_data[index] / 255.0 * 2.0 - 1.0 };
 
                     sum += channel_0 * cos_term(y, v) * cos_term(x, u) * coefficient(u) * coefficient(v);
                 }

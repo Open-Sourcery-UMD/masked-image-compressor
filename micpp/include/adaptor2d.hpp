@@ -28,7 +28,7 @@ class Adaptor2D {
 
 public:
     Adaptor2D(T&& indexable, size_t width, size_t height) : indexable{ std::move(indexable) }, m_width{ width },
-                                                                     m_height{ height } {}
+                                                            m_height{ height } {}
 
     // We get a regular copy if our value is trivially copyable and a reference if not
     index_return_t operator[](size_t x, size_t y) const {
