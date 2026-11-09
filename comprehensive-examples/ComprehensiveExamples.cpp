@@ -94,7 +94,7 @@ static float calcPSNR(const float* imageRef, const float* imageTest, const unsig
     }
 
     float mse = sum / totalPixels;
-    float psnr = 10.0f*std::log10f((1.0*1.0)/mse);
+    float psnr = 10.0f*log10f((1.0*1.0)/mse);
     return psnr;
 
 }
@@ -183,6 +183,113 @@ void partialDCTCompute(float *dctCoeffLUT, float *invLUT, float *DCT_LUT, unsign
             }
         }
 
+    }
+}
+
+// Another method
+// TODO: Currently modifies data copy!
+void normedDCTCompute(float *dctCoeffLUT, float *invLUT, float *DCT_LUT, unsigned char *dataMask, float *dataCopy, int targetN) {
+
+    // Controls the number of coefficients subtracted off, a K by K block
+    //int K = targetN;
+    int K = 32;
+
+    int opaquePixelCount = 0;
+    // Count Opaque Pixels
+    for (int y = 0; y < N; y++) {
+        for (int x = 0; x < N; x++) {
+            if (dataMask[N*y + x] !=0) {
+                opaquePixelCount++;
+            }
+        }
+    }
+
+    // ---- Forward DCT, via table (one coefficient at a time) ----
+    for (int v = 0; v < N; v++) {
+        for (int u = 0; u < N; u++) {
+            float sum = 0.0f;
+            float opaqueIdealSum = 0.0f;
+            float transIdealSum = 0.0f;
+            float fullIdealSum = 0.0f;
+            float individualNormalizedSum = 0.0f;
+            for (int y = 0; y < N; y++) {
+                for (int x = 0; x < N; x++) {
+                    // Skip transparent pixels
+                    float lutVal = DCT_LUT[N*N*N*v + N*N*y + N*u + x];
+                    float curVal = lutVal * dataCopy[y*N + x];
+                        sum += curVal;
+                    if (dataMask[N*y + x] != 0) {
+                        opaqueIdealSum += abs(lutVal);
+                        individualNormalizedSum += curVal / abs(lutVal);
+                    } else {
+                        transIdealSum += abs(lutVal);
+                    }
+                    fullIdealSum += abs(lutVal);
+                }
+            }
+
+            float transSum = 0.0f;
+
+            for (int y = 0; y < N; y++) {
+                for (int x = 0; x < N; x++) {
+                    // Skip transparent pixels
+                    float lutVal = DCT_LUT[N*N*N*v + N*N*y + N*u + x];
+                    float curVal = lutVal * dataCopy[y*N + x];
+                    if (dataMask[N*y + x] != 0) {
+
+                    } else {
+                        transSum += abs(lutVal) * individualNormalizedSum/(N*N);
+                    }
+                }
+            }
+            // Normalize sum to value as if opaque pixels only mattered
+
+            // 
+            float opaqueFactor = sum/opaqueIdealSum;
+
+            float transparentPixelCount = N*N - opaquePixelCount;
+
+            //float result = transparentPixelCount/(2*N*N) * (opaqueFactor * transIdealSum);
+            float result = transparentPixelCount * (individualNormalizedSum/(N*N) * transIdealSum/(N*N));
+
+            dctCoeffLUT[v*N + u] = sum + transSum;
+            //dctCoeffLUT[v*N + u] = sum;
+
+            // Finally, subtract off from data the current coefficient term
+            // (Applying one coefficient)
+            if (u < K && v < K) {
+                float c = dctCoeffLUT[v*N + u];
+
+                for (int y = 0; y < N; y++) {
+                    for (int x = 0; x < N; x++) {
+                        dataCopy[y*N + x] -= c * DCT_LUT[N*N*N*v + N*N*y + N*u + x];
+                    }
+                }
+            }
+
+        }
+    }
+
+    // Only needed for producing output, dct is finished computing
+
+    // Reset output
+    for (int y = 0; y < N; y++) {
+        for (int x = 0; x < N; x++) {
+            invLUT[N*y + x] = 0;
+        }
+    }
+
+    // Inverse DCT
+    for (int v = 0; v < N; v++) {
+        for (int u = 0; u < N; u++) {
+            float c = dctCoeffLUT[v*N + u];
+
+            for (int y = 0; y < N; y++) {
+                for (int x = 0; x < N; x++) {
+                    invLUT[y*N + x] += c * DCT_LUT[N*N*N*v + N*N*y + N*u + x];
+                }
+            }
+        }
     }
 }
 
@@ -376,14 +483,15 @@ int main() {
         }
     }
 
-    for (int targetN = 1; targetN <= N; targetN++) {
+    for (int targetN = 1; targetN <= 1; targetN++) {
         // Start Time Benchmark
         using clock = std::chrono::steady_clock;
 
         clock::time_point start_time = clock::now();
 
         // Benchmarks Paritial/Progressive DCT Method
-        partialDCTCompute(dctCoeffLUT, invLUT, DCT_LUT, dataMask, dataCopy, targetN);
+        //partialDCTCompute(dctCoeffLUT, invLUT, DCT_LUT, dataMask, dataCopy, targetN);
+        normedDCTCompute(dctCoeffLUT, invLUT, DCT_LUT, dataMask, dataCopy, targetN);
 
         clock::time_point end_time = clock::now();
 
