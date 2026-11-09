@@ -22,6 +22,14 @@ FetchContent_Declare(
         DOWNLOAD_NO_EXTRACT ON
 )
 
+# Download stb_image_write
+FetchContent_Declare(
+        stb_image_write
+        URL "https://raw.githubusercontent.com/nothings/stb/refs/heads/master/stb_image_write.h"
+        DOWNLOAD_DIR "${CMAKE_CURRENT_BINARY_DIR}/include/"
+        DOWNLOAD_NO_EXTRACT ON
+)
+
 # Download argparse
 FetchContent_Declare(
         argparse
@@ -30,7 +38,7 @@ FetchContent_Declare(
         DOWNLOAD_NO_EXTRACT ON
 )
 
-FetchContent_MakeAvailable(stb_image argparse)
+FetchContent_MakeAvailable(stb_image stb_image_write argparse)
 
 # Set a universal directory to access downloaded headers from
 set(MICPP_DEP_INCLUDE "${CMAKE_CURRENT_BINARY_DIR}/include")
