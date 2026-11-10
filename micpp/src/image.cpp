@@ -23,7 +23,7 @@ Image::Image(const std::filesystem::path& path) : m_width{ 0 }, m_height{ 0 } {
     int channels{};
 
     std::unique_ptr<unsigned char[]> p_data{
-        stbi_load_from_file(file, &m_width, &m_height, &channels, 0)
+        stbi_load_from_file(file, &m_width, &m_height, &channels, 4)
     };
 
     if (p_data == nullptr || m_width != m_height) {

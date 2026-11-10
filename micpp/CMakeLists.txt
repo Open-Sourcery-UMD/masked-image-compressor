@@ -47,6 +47,10 @@ set(MICPP_DEP_INCLUDE "${CMAKE_CURRENT_BINARY_DIR}/include")
 add_executable(micompress src/micompress.cpp)
 target_include_directories(micompress PRIVATE include ${MICPP_DEP_INCLUDE})
 
-# dctdump, a tool for dumping the DCT coefficients of a vector
+# dctdump, a tool for dumping the DCT coefficients of an image into the terminal
 add_executable(dctdump src/dctdump.cpp src/image.cpp)
 target_include_directories(dctdump PRIVATE include ${MICPP_DEP_INCLUDE})
+
+# dctimg, a tool for dumping the DCT coefficients of an image into another image for visualization
+add_executable(dctimg src/dctimg.cpp src/image.cpp)
+target_include_directories(dctimg PRIVATE include ${MICPP_DEP_INCLUDE})
