@@ -13,17 +13,16 @@
 #endif
 
 
-Image::Image(const std::filesystem::path& path) : m_width{ 0 }, m_height{ 0 } {
+Image::Image(const std::filesystem::path& path) : m_width{ 0 }, m_height{ 0 }, m_channels{ 0 } {
     FILE* file{ fopen(path.c_str(), "rb") };
 
     if (file == nullptr) {
         throw std::runtime_error("Failed to open file");
     }
 
-    int channels{};
 
     std::unique_ptr<unsigned char[]> p_data{
-        stbi_load_from_file(file, &m_width, &m_height, &channels, 4)
+        stbi_load_from_file(file, &m_width, &m_height, &m_channels, 4)
     };
 
     if (p_data == nullptr || m_width != m_height) {
@@ -33,8 +32,8 @@ Image::Image(const std::filesystem::path& path) : m_width{ 0 }, m_height{ 0 } {
     m_data = std::move(p_data);
 }
 
-Image::Image(std::unique_ptr<unsigned char[]>&& data, const int width, const int height) : m_width{ width },
-    m_height{ height } {
+Image::Image(std::unique_ptr<unsigned char[]>&& data, const int width, const int height, const int channels) :
+    m_width{ width }, m_height{ height }, m_channels{ channels } {
     if (data == nullptr || width < 0 || height < 0 || height != width) {
         throw std::runtime_error("Invalid parameters");
     }
@@ -80,7 +79,7 @@ Adaptor2D<std::vector<double>> Image::dct() const {
 
             for (std::size_t y{ 0 }; y < m_height; ++y) {
                 for (std::size_t x{ 0 }; x < m_width; ++x) {
-                    const std::size_t index{ (y * m_width + x) * 4 };
+                    const std::size_t index{ (y * m_width + x) * m_channels };
 
                     const double channel_0{ m_data[index] / 255.0 * 2.0 - 1.0 };
 
@@ -97,4 +96,20 @@ Adaptor2D<std::vector<double>> Image::dct() const {
 #endif
 
     return Adaptor2D{ std::move(dct), static_cast<std::size_t>(m_width), static_cast<std::size_t>(m_height) };
+}
+
+Image::Pixel Image::pixel_rgba(const int x, const int y) const {
+    Pixel p {};
+
+#ifndef NDEBUG
+    assert(m_channels <= 4);
+#endif
+
+    for (int i {0}; i < m_channels; ++i) {
+        //
+        p.rgba |=
+            static_cast<std::uint32_t>(m_data[(y * m_width + x) * m_channels + i]) << (8 * i);
+    }
+
+    return p;
 }
