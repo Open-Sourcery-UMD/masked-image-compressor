@@ -136,6 +136,8 @@ int main() {
     stbi_write_png("data.png",                N, N, 1, dataChar, N);
     stbi_write_png("dct_coeff_Direct_abs.png",N, N, 1, dctCoeffDirectAbsChar, N);
     stbi_write_png("reconst_direct.png",      N, N, 1, invDirectChar, N);
+   
+    free(dataTemp);
 
     return 0;
 }
