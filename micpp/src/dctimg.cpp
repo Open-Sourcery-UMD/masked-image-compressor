@@ -9,7 +9,7 @@
 #endif
 
 // Responsible for handling the rest of the program after we parse the arguments
-static int dctdump(const argparse::ArgumentParser& parser);
+static int run(const argparse::ArgumentParser& parser);
 
 int main(int argc, char* argv[]) {
     argparse::ArgumentParser parser{ "dctimg" };
@@ -29,10 +29,10 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    return dctdump(parser);
+    return run(parser);
 }
 
-int dctdump(const argparse::ArgumentParser& parser) {
+int run(const argparse::ArgumentParser& parser) {
     try {
         const std::filesystem::path input_filepath{ parser.get("--file") };
         const Image image{ input_filepath };

@@ -5,10 +5,6 @@
 #include <vector>
 #include <adaptor2d.hpp>
 
-#ifndef NDEBUG
-#include <cassert>
-#endif
-
 // Image represents a generic image at runtime that we can perform processes on
 class Image {
     int m_width;
@@ -48,7 +44,7 @@ class Image {
         }
 
     private:
-        // 0 = r, 1 = g, 2 = b, 3 = 4
+        // 0 = r, 1 = g, 2 = b, 3 = a
         std::uint8_t channel[4];
         std::uint32_t rgba;
 
